@@ -1,0 +1,6 @@
+CREATE EXTENSION pg_trgm; - To use the similarity() function for fuzzy matching
+
+# Get headers
+SELECT column_name
+FROM information_schema.columns
+WHERE table_name = 'draftedplayers';
