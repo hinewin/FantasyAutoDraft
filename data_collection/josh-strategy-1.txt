@@ -1,0 +1,23 @@
+Evaluate Player Health and Game Absences: When drafting, it's crucial to avoid players with a high risk of injury or expected game absences. For instance, avoiding Joel Embiid early in the draft due to the potential for missed games caused by multiple knee surgeries is an advised strategy[1].
+
+Understand Positional Value and Usage: Players' effectiveness and contribution are heavily influenced by their roles and usage rates. Careful consideration should be given to players with changing conditions, such as new teammates or changes in team strategy, which might affect their statistical output. For example, Jalen Green's effectiveness might decrease with more guards being introduced to his team[2].
+
+Avoid Overvalued Players Without Strong Justifications: Avoid drafting players who are positioned higher than their actual or projected value. For instance, Michael Porter Jr. is ranked higher than his production would justify due to his lack of turnovers in standard leagues[3].
+
+Examine Historical Performance in Points Leagues: When assessing players, look at their past performance specifically in points leagues as Yahoo often combines rankings which may not fit well for both categories and points leagues. Players like Tyrese Haliburton may be ranked differently across categories, and insights into their historical points league performance can inform better decisions[4].
+
+Adapt Strategies Based on Format and Scoring Systems: Make sure strategies are aligned with the specific fantasy league format—whether it is points, categories, Roto, or head-to-head. Ensure player evaluations adapt to these formats and understand the implications of different scoring systems on player rankings[5].
+
+Focus Beyond Top 10 Rounds for Value: Many players selected outside the first rounds often make significant contributions. Consider drafting players who are consistent and offer improving metrics over time, rather than just big names in lower rounds[6].
+
+Inverse Reinforcement Learning (IRL) for Drafting Decisions: Using IRL, particularly adversarial inverse reinforcement learning (AIRL), can help model player behavior and statistics. AIRL can produce rewards that are robust across different environments, allowing for an adaptable strategy that can potentially enhance player and team selections despite changes or uncertainties in player conditions throughout the season[1].
+
+Role-Based Evaluations: Understanding player roles within their teams will impact their fantasy value. Players with flexible roles or changing dynamics within their team's strategy might have varied outputs season-to-season. Adopting AIRL models can provide insights into how these role changes might impact performance, allowing you to adjust your draft strategy accordingly[2].
+
+Statistical Projection and Performance Trends: It's crucial to analyze historical performance and trends. For instance, players like Anthony Edwards, ranked differently based on variations in analysis such as potential increased efficiencies or usage rates, should be scrutinized beyond raw scoring metrics[3].
+
+Leveraging Positional Fluidity: Evaluate players who can play multiple positions effectively, allowing for flexibility in your lineup, maximizing points in different categories. Players who have succeeded in various roles within different team formations may provide greater versatility and reduce risk[4].
+
+Do-Not-Draft Analysis on Risk: When considering players like Michael Porter Jr., who are noted for potential risk due to historical injuries but have minimal turnovers, it might be wiser to avoid them for more stable options. Their current rankings might not fully reflect injury risks and team role adjustments[5].
+
+Advanced Metrics for Value Analysis: Incorporating advanced statistics, such as per-minute averages or efficiencies, can yield better assessments of player potential that go beyond traditional metrics like points per game. This allows drafters to identify undervalued players or those likely to overperform relative to their draft position[6].

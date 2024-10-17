@@ -5,17 +5,21 @@ import psycopg2
 
 from psycopg2.extras import DictCursor
 
+from prediction import PredictiveModel
+
 class Draft:
     def __init__(self, connection):
         self.connection = connection
         self.cursor = self.connection.cursor(cursor_factory=DictCursor)
+        self.predictive_model = PredictiveModel(self)
+
         self.num_owners = None
         self.user_draft_position = None
         self.user_team_name = "***USER-TEAM***"
         self.total_rounds = 13
         self.draft_order = None
-
-        # Gather l
+        self.overall_pick = 1
+        self.picks_per_round = None
 
     def start_draft(self):
         """ Create a table to keep track of a draft """
@@ -70,6 +74,7 @@ class Draft:
 
         # Gather league and draft details
         self.num_owners = int(input("Enter the total number of Fantasy owners in your league: "))
+        self.picks_per_round = self.num_owners 
         self.user_draft_position = int(input("Enter your draft position: "))
         team_name_input = input("Enter your fantasy team name: ")
         if team_name_input:
@@ -130,55 +135,71 @@ class Draft:
 
     def draft_player(self):
         """ Draft player, writing result to CSV & Database"""
-        overall_pick = 1
         for row in self.draft_order:
-            pick, team, _, _ = row
+            _, team, _, _ = row
             while True:
-                print(f"Now drafting: {team} at pick #: {overall_pick}")
+                print(f"Now drafting: {team} at pick #: {self.overall_pick}")
                 player_choice = input("Provide Player Name or Rank to Draft: ")
                 players = self.select_player(player_choice)
 
                 if not players:
                     print("Could not find any players matching input.")
                     return False
-                # If multiple players are found, ask user to select one
+
                 elif isinstance(players[0], list):
                     print("Multiple players found, please select one:")
                     for i, player in enumerate(players, start=1):
                         print(f"{i}. {player['player']} (Rank: {player['rank']}, Team: {player['team']}, Position: {player['pos']})")
-                    while True:
-                        try:
-                            selection = input("Enter the number of the player you want to draft: ")
-                            if selection == "":
-                                print("No player selected. Let's try again.")
-                                continue
-                            player = players[int(selection) - 1]  # -1 because list indexes start at 0
+                    print("0. None of these.")
+
+                    choosing_player = True
+                    while choosing_player:
+                        selection = input("Enter the number of the player you want to draft (or 0 to search again): ")
+                        if selection == "0":
                             break
-                        except KeyboardInterrupt:
-                            print("\nDraft cancelled by user.")
-                            return
-                        except (ValueError, IndexError):
-                            print("Invalid selection. Let's try again.")
+                        elif selection == "":
+                            print("No player selected. Let's try again.")
+                        else:
+                            try:
+                                player = players[int(selection) - 1]
+                                choosing_player = False
+                            except (ValueError, IndexError):
+                                print("Invalid selection. Let's try again.")
+                    
+                    if choosing_player:
+                        # No player was selected, repeat the process
+                        continue 
+
                 else:  # Exact player found
                     player = players
-
+                
                 # Confirm with the user before drafting
                 confirm = input(f"Draft player {player['player']}, Rank {player['rank']}, from team {player['team']}, position {player['pos']}? (yes/no): ")
                 if confirm.lower() in ["y", "yes"]:
-                    row[0] = overall_pick
+                    row[0] = self.overall_pick     
                     # Insert player data into your 'DraftedPlayers' table in the database
                     self.cursor.execute("""
-                        INSERT INTO DraftedPlayers (FantasyTeam, DraftPick, Player, Rank)
-                        VALUES (%s, %s, %s, %s)
-                    """, (team, overall_pick, player['player'], player['rank']))  # team and pick come from the draft_order list
+                    INSERT INTO DraftedPlayers (FantasyTeam, DraftPick, Player, Rank)
+                    VALUES (%s, %s, %s, %s)
+                """, (team, self.overall_pick, player['player'], player['rank']))  # team and pick come from the draft_order list
                     self.connection.commit()
+
                     print ("[DB] Inserted values into DraftedPlayers Table")
+
                     # Save the drafted player's name and rank into the draft order list
                     row[2] = player['player']
                     row[3] = player['rank']
                     print(f"Player {player['player']} is successfully drafted by {team}!")
-                    overall_pick += 1
-                    break
+                    self.overall_pick += 1
+
+                    ### PREDICTION ####
+
+                    # After each draft, run the predictive model
+                    print("Analyzing your team's performance...")
+                    self.predictive_model.analyze_user_team(self.user_team_name)
+                    print (self.predictive_model.rank_players())
+                    break  # Break the loop after a successful draft
+
                 else:
                     print("Draft cancelled for this player. Please choose another player.")
 
@@ -189,7 +210,32 @@ class Draft:
             writer.writerows(self.draft_order)  # Write draft data
 
         print("Drafting complete. The final draft order has been saved to draft_order.csv")
+
+    def get_user_team(self, team_name):
+        """ Return current drafted players in a specific team """
+        query = """
+            SELECT * FROM DraftedPlayers WHERE FantasyTeam = %s
+        """
+        self.cursor.execute(query, (team_name,))
+        result = self.cursor.fetchall()
+        return result
                 
+    def get_available_players(self, num):
+        """ Return highest ranked players from available pool"""
+
+        query = """
+        SELECT * FROM PLayerstats p
+        WHERE NOT EXISTS (
+            SELECT 1 FROM DraftedPlayers d WHERE d.rank = p.rank
+        )
+        ORDER BY p.Rank ASC 
+        LIMIT %s
+        """
+
+        self.cursor.execute(query, (num,))
+        top_players = self.cursor.fetchall()
+        return top_players
+
     def calculate_team_stats(self, team):
         """Calculates and updates statistics for a particular fantasy team."""
        
