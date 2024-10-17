@@ -13,7 +13,7 @@ class Draft:
         self.user_draft_position = None
         self.user_team_name = "***USER-TEAM***"
         self.total_rounds = 13
-        self.current_pick = 1
+        self.draft_order = None
 
         # Gather l
 
@@ -74,23 +74,24 @@ class Draft:
 
         for draft_round in range(self.total_rounds):
             round_order = initial_order if draft_round % 2 == 0 else initial_order[::-1] # Initial order if round is even
-            picks_order.extend(round_order)
-
-        with open('draft_order.csv', 'w', newline='', encoding='utf-8') as draft_csvfile:
-            writer = csv.writer(draft_csvfile)
-            headers = ['Team', 'Pick Number', 'Player Name', 'Rank', 'Position', 'Team', 'Projected Fantasy PT']
-            writer.writerow(headers)
-            for pick, team in enumerate(picks_order, start=1):
-                writer.writerow([pick, team] + [""] * (len(headers) - 2)) # Leave empty value for other headers
-
-        return picks_order
+            for pick, team in enumerate(round_order):
+                 # Store each pick as a list [pick number, team, empty space for player, empty space for rank]
+                picks_order.append([pick + 1, team, "", ""])  # We add 1 to pick because Python's list indices start at 0
+        print (f"Here is draft order: {picks_order}")
+        self.draft_order = picks_order  # Add this line to store the draft order in your Draft instance
     
     def select_player(self, player_name):
         """ Select a player from the pool """
 
      #If name is a an exact match
         self.cursor.execute("""
-        SELECT Rank, Player, Pos, Team FROM PlayerStats WHERE Player ILIKE %s;
+        SELECT Rank, Player, Pos, Team
+        FROM PlayerStats
+        WHERE Player ILIKE %s
+        AND Rank NOT IN (
+            SELECT Rank
+            FROM DraftedPlayers
+        );
         """,(player_name,))
         result = self.cursor.fetchone()
         print (result)
@@ -103,6 +104,10 @@ class Draft:
         self.cursor.execute("""
         SELECT Rank, Player, Pos, Team
         FROM PLayerStats
+        WHERE Rank NOT IN (
+            SELECT Rank
+            FROM DraftedPlayers                    
+        )
         ORDER BY similarity(Player, %s) DESC
         LIMIT 3;                                
         """, (player_name,))
@@ -111,67 +116,71 @@ class Draft:
         return results
 
     def draft_player(self):
-        while True:
-            player_choice = input("Provide Player Name or Rank to Draft: ")
+        """ Draft player, writing result to CSV & Database"""
 
-            # Use `select_player` function
-            players = self.select_player(player_choice)
+        for row in self.draft_order:
+            pick, team, _, _ = row
+            while True:
+                print(f"Now drafting: {team} at pick #: {pick}")
+                player_choice = input("Provide Player Name or Rank to Draft: ")
+                players = self.select_player(player_choice)
 
-            if not players:
-                print("Could not find any players matching input.")
-                return False
+                if not players:
+                    print("Could not find any players matching input.")
+                    return False
+                # If multiple players are found, ask user to select one
+                elif isinstance(players[0], list):
+                    print("Multiple players found, please select one:")
+                    for i, player in enumerate(players, start=1):
+                        print(f"{i}. {player['player']} (Rank: {player['rank']}, Team: {player['team']}, Position: {player['pos']})")
+                    while True:
+                        try:
+                            selection = input("Enter the number of the player you want to draft: ")
+                            if selection == "":
+                                print("No player selected. Let's try again.")
+                                continue
+                            player = players[int(selection) - 1]  # -1 because list indexes start at 0
+                            break
+                        except KeyboardInterrupt:
+                            print("\nDraft cancelled by user.")
+                            return
+                        except (ValueError, IndexError):
+                            print("Invalid selection. Let's try again.")
+                else:  # Exact player found
+                    player = players
 
-            # If multiple players are found, ask user to select one
-            elif isinstance(players[0], list) :
-                print("Multiple players found, please select one:")
-                for i, player in enumerate(players, start=1):
-                    print(f"{i}. {player['player']} (Rank: {player['rank']}, Team: {player['team']}, Position: {player['pos']})")
-                while True:
-                    try:
-                        selection = input("Enter the number of the player you want to draft: ")
-                        if selection == "":
-                            print("No player selected. Let's try again.")
-                            continue
-                        player = players[int(selection) - 1] # -1 because list indexes start at 0
-                        break
-                    except KeyboardInterrupt:
-                        print("\nDraft cancelled by user.")
-                        return
-                    except (ValueError, IndexError):
-                        print("Invalid selection. Let's try again.")
-
-            else: # Exact player found
-                player = players
-
-            # Confirm with the user before drafting
-            confirm = input(f"Draft player {player['player']}, Rank {player['rank']}, from team {player['team']}, position {player['pos']}? (yes/no): ")
-
-            if confirm.lower() in ["y", "yes"]:
-            # Insert player data into your 'DraftedPlayers' table in the database
-                self.cursor.execute("""
-                    INSERT INTO DraftedPlayers (FantasyTeam, DraftPick, Player, Rank)
-                    VALUES (%s, %s, %s, %s)
-                """, (self.user_team_name, self.current_pick, player['player'], player['rank']))
-
-                self.connection.commit()
-            # Write player data into the CSV
-            with open('draft_order.csv', 'a', newline='') as csvfile:
-                fieldnames = ['FantasyTeam', 'DraftPick', 'Player', 'Rank']
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-
-                writer.writerow({
-                    'FantasyTeam': self.user_team_name, 
-                    'DraftPick': self.current_pick, 
-                    'Player': player['player'], 
-                    'Rank': player['rank']
-                })
-                print(f"Player data successfully added to draft.csv")
-
-            print(f"Successfully drafted {player['player']} by {self.user_team_name}!")
-            self.current_pick += 1 # Move to next pick
-
+                # Confirm with the user before drafting
+                confirm = input(f"Draft player {player['player']}, Rank {player['rank']}, from team {player['team']}, position {player['pos']}? (yes/no): ")
+                if confirm.lower() in ["y", "yes"]:
+                    # Insert player data into your 'DraftedPlayers' table in the database
+                    self.cursor.execute("""
+                        INSERT INTO DraftedPlayers (FantasyTeam, DraftPick, Player, Rank)
+                        VALUES (%s, %s, %s, %s)
+                    """, (team, pick, player['player'], player['rank']))  # team and pick come from the draft_order list
+                    self.connection.commit()
+                    # Save the drafted player's name and rank into the draft order list
+                    row[2] = player['player']
+                    row[3] = player['rank']
+                    print(f"Player {player['player']} is successfully drafted by {team}!")
+                    break
+                else:
+                    print("Draft cancelled for this player. Please choose another player.")
                 
 
+        # At the end of the drafting, save the draft order with all players into a CSV file
+        with open('draft_order.csv', 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(['Pick Number', 'Team', 'Player Name', 'Rank'])  # Write header
+            writer.writerows(self.draft_order)  # Write draft data
+
+        print("Drafting complete. The final draft order has been saved to draft_order.csv")
+                
+    def calculate_team_stats(self, team):
+        pass
+
+
+
+    
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-R", "--reset-draft", help="Reset draft", action="store_true")
@@ -194,6 +203,7 @@ def main():
         
         if args.start_draft:
             draft.start_draft()
+            draft.create_draft_order()
             draft.draft_player()
 
         
